@@ -1,18 +1,16 @@
-"""Aggregate pipeline run reporting using history and formatters."""
+"""Aggregate results from a single pipeline check run."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import List
 
-from pipewatch.history import MetricHistory
 from pipewatch.metrics import MetricEvaluation, MetricStatus
 
 
+@dataclass
 class RunReport:
-    """Summary report for a single pipeline check run."""
-
-    def __init__(self, evaluations: List[MetricEvaluation]):
-        self.evaluations = evaluations
+    evaluations: List[MetricEvaluation] = field(default_factory=list)
 
     @property
     def total(self) -> int:
@@ -31,32 +29,44 @@ class RunReport:
         return sum(1 for e in self.evaluations if e.status == MetricStatus.CRITICAL)
 
     @property
+    def has_critical(self) -> bool:
+        return self.critical_count > 0
+
+    @property
+    def has_warning(self) -> bool:
+        return self.warning_count > 0
+
+    @property
     def overall_status(self) -> MetricStatus:
-        if self.critical_count > 0:
+        if self.has_critical:
             return MetricStatus.CRITICAL
-        if self.warning_count > 0:
+        if self.has_warning:
             return MetricStatus.WARNING
         return MetricStatus.OK
 
     def summary_line(self) -> str:
-        status = self.overall_status.value.upper()
         return (
-            f"[{status}] {self.total} metrics checked — "
-            f"{self.ok_count} ok, {self.warning_count} warning, {self.critical_count} critical"
+            f"Run complete: {self.total} metrics | "
+            f"OK={self.ok_count} WARNING={self.warning_count} "
+            f"CRITICAL={self.critical_count} | "
+            f"Overall: {self.overall_status.value.upper()}"
         )
 
-
-class Reporter:
-    """Records evaluations to history and produces run reports."""
-
-    def __init__(self, history: MetricHistory):
-        self.history = history
-
-    def record_run(self, evaluations: List[MetricEvaluation]) -> RunReport:
-        for ev in evaluations:
-            self.history.record(ev)
-        return RunReport(evaluations)
-
-    def recent_critical_count(self, last_n: int = 10) -> int:
-        entries = self.history.get_all()[-last_n:]
-        return sum(1 for e in entries if e.evaluation.status == MetricStatus.CRITICAL)
+    def to_dict(self) -> dict:
+        return {
+            "total": self.total,
+            "ok_count": self.ok_count,
+            "warning_count": self.warning_count,
+            "critical_count": self.critical_count,
+            "overall_status": self.overall_status.value,
+            "evaluations": [
+                {
+                    "metric": e.metric.name,
+                    "value": e.metric.value,
+                    "unit": e.metric.unit,
+                    "status": e.status.value,
+                    "timestamp": str(e.metric.timestamp),
+                }
+                for e in self.evaluations
+            ],
+        }
