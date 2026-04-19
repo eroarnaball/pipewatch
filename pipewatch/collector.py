@@ -22,6 +22,16 @@ class MetricCollector:
             "tags": tags or {},
         }
 
+    def unregister(self, pipeline_name: str, metric_name: str) -> bool:
+        """Remove a registered collector. Returns True if it existed, False otherwise."""
+        pipeline_metrics = self._collectors.get(pipeline_name)
+        if pipeline_metrics is None or metric_name not in pipeline_metrics:
+            return False
+        del pipeline_metrics[metric_name]
+        if not pipeline_metrics:
+            del self._collectors[pipeline_name]
+        return True
+
     def collect_all(self) -> List[PipelineMetric]:
         """Run all registered collectors and return metric snapshots."""
         results = []
