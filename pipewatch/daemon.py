@@ -33,7 +33,12 @@ class PipeWatchDaemon:
         self._last_report: Optional[RunReport] = None
 
     def _run_cycle(self) -> None:
-        metrics = self.collector.collect_all()
+        """Collect metrics, evaluate thresholds, record history, and dispatch alerts."""
+        try:
+            metrics = self.collector.collect_all()
+        except Exception as exc:
+            raise RuntimeError(f"Metric collection failed: {exc}") from exc
+
         evaluations = [self.evaluator.evaluate(m) for m in metrics]
         report = RunReport(evaluations)
         self._last_report = report
