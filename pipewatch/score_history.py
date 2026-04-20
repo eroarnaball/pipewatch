@@ -1,67 +1,71 @@
-"""Tracks historical health scores over time for pipewatch."""
-
+"""Score history tracking: record and query health score over time."""
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Optional
-from pipewatch.scorer import HealthScore
 
 
 @dataclass
 class ScoreEntry:
+    """A single recorded health score at a point in time."""
     timestamp: datetime
-    percentage: float
+    score: float  # 0.0 - 100.0
     grade: str
+    ok_count: int
+    warning_count: int
+    critical_count: int
 
     def to_dict(self) -> dict:
         return {
             "timestamp": self.timestamp.isoformat(),
-            "percentage": round(self.percentage, 2),
+            "score": round(self.score, 2),
             "grade": self.grade,
+            "ok_count": self.ok_count,
+            "warning_count": self.warning_count,
+            "critical_count": self.critical_count,
         }
 
 
 class ScoreHistory:
-    def __init__(self, max_entries: int = 100):
-        if max_entries < 1:
-            raise ValueError("max_entries must be at least 1")
-        self._max_entries = max_entries
+    """Maintains a rolling history of health scores."""
+
+    def __init__(self, max_entries: int = 100) -> None:
+        self.max_entries = max_entries
         self._entries: List[ScoreEntry] = []
 
-    def record(self, score: HealthScore, timestamp: Optional[datetime] = None) -> ScoreEntry:
-        ts = timestamp or datetime.utcnow()
-        entry = ScoreEntry(timestamp=ts, percentage=score.percentage, grade=score.grade)
+    def record(self, entry: ScoreEntry) -> None:
         self._entries.append(entry)
-        if len(self._entries) > self._max_entries:
-            self._entries.pop(0)
-        return entry
+        if len(self._entries) > self.max_entries:
+            self._entries = self._entries[-self.max_entries:]
+
+    @property
+    def entries(self) -> List[ScoreEntry]:
+        return list(self._entries)
 
     def latest(self) -> Optional[ScoreEntry]:
         return self._entries[-1] if self._entries else None
 
-    def all_entries(self) -> List[ScoreEntry]:
-        return list(self._entries)
+    def average_score(self) -> float:
+        if not self._entries:
+            return 0.0
+        return sum(e.score for e in self._entries) / len(self._entries)
 
-    def average_percentage(self) -> Optional[float]:
+    def lowest_score(self) -> Optional[ScoreEntry]:
         if not self._entries:
             return None
-        return sum(e.percentage for e in self._entries) / len(self._entries)
+        return min(self._entries, key=lambda e: e.score)
 
-    def trend(self) -> str:
-        """Return 'improving', 'degrading', or 'stable' based on last vs first entry."""
-        if len(self._entries) < 2:
-            return "stable"
-        delta = self._entries[-1].percentage - self._entries[0].percentage
-        if delta > 5.0:
-            return "improving"
-        elif delta < -5.0:
-            return "degrading"
-        return "stable"
+    def highest_score(self) -> Optional[ScoreEntry]:
+        if not self._entries:
+            return None
+        return max(self._entries, key=lambda e: e.score)
+
+    def since(self, cutoff: datetime) -> List[ScoreEntry]:
+        return [e for e in self._entries if e.timestamp >= cutoff]
 
     def to_dict(self) -> dict:
-        avg = self.average_percentage()
         return {
-            "entries": [e.to_dict() for e in self._entries],
-            "average_percentage": round(avg, 2) if avg is not None else None,
-            "trend": self.trend(),
+            "max_entries": self.max_entries,
             "count": len(self._entries),
+            "average_score": round(self.average_score(), 2),
+            "entries": [e.to_dict() for e in self._entries],
         }
