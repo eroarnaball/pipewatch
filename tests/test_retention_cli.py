@@ -37,6 +37,18 @@ def test_run_retention_short_ttl_removes_more():
     assert data[0]["removed"] >= 2
 
 
+def test_run_retention_removed_and_remaining_are_non_negative():
+    """Ensure removed and remaining counts are never negative regardless of TTL."""
+    runner = CliRunner()
+    for ttl in ["1", "86400", "999999"]:
+        result = runner.invoke(retention, ["run", "--ttl", ttl, "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        for entry in data:
+            assert entry["removed"] >= 0, f"removed was negative for ttl={ttl}"
+            assert entry["remaining"] >= 0, f"remaining was negative for ttl={ttl}"
+
+
 def test_show_policy_contains_ttl():
     runner = CliRunner()
     result = runner.invoke(retention, ["policy", "--ttl", "7200"])
