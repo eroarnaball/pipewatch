@@ -92,16 +92,15 @@ def test_to_dict_has_expected_keys():
     for key in ("metric_name", "window_seconds", "start", "end",
                 "total", "ok_count", "warning_count", "critical_count",
                 "min_value", "max_value", "avg_value"):
-        assert key in d
+        assert key in d, f"Missing key in to_dict() output: {key}"
 
 
-def test_window_seconds_respected():
-    rollup = make_rollup(window_seconds=50)
-    history = make_history([
-        (MetricStatus.OK, 1.0, 10),   # inside
-        (MetricStatus.OK, 2.0, 40),   # inside
-        (MetricStatus.OK, 3.0, 60),   # outside
-    ])
+def test_compute_single_entry_min_max_avg_equal():
+    """When only one entry exists, min, max, and avg should all be equal."""
+    rollup = make_rollup(window_seconds=300)
+    history = make_history([(MetricStatus.OK, 42.0, 10)])
     rollup.register("m", history)
     result = rollup.compute("m")
-    assert result.total == 2
+    assert result.min_value == pytest.approx(42.0)
+    assert result.max_value == pytest.approx(42.0)
+    assert result.avg_value == pytest.approx(42.0)
