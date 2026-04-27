@@ -66,3 +66,18 @@ class AlertStagger:
 
     def queue_size(self) -> int:
         return len(self.pending())
+
+    def cancel(self, metric_name: str) -> int:
+        """Remove all unsent alerts for a given metric from the queue.
+
+        Useful when a metric recovers before its queued alerts are dispatched,
+        allowing stale notifications to be discarded.
+
+        Returns the number of alerts removed.
+        """
+        before = len(self._queue)
+        self._queue = [
+            a for a in self._queue
+            if a.sent or a.message.metric_name != metric_name
+        ]
+        return before - len(self._queue)
