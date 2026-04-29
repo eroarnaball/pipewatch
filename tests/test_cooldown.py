@@ -80,3 +80,21 @@ def test_all_entries_returns_all_tracked():
     cd.trigger("b")
     cd.trigger("c")
     assert set(cd.all_entries().keys()) == {"a", "b", "c"}
+
+
+def test_retrigger_resets_cooldown_window():
+    """Re-triggering an active cooldown should reset the expiry time."""
+    cd = make_cooldown(default_seconds=60)
+    now = datetime.utcnow()
+    cd.trigger("my_metric", now=now)
+
+    # Re-trigger 50 seconds later (still within the original window)
+    later = now + timedelta(seconds=50)
+    cd.trigger("my_metric", now=later)
+
+    # 70 seconds after original trigger, but only 20 seconds after re-trigger
+    # — should still be cooling because the window was reset
+    assert cd.is_cooling("my_metric", now=now + timedelta(seconds=70))
+
+    # 111 seconds after original trigger, 61 seconds after re-trigger — expired
+    assert not cd.is_cooling("my_metric", now=now + timedelta(seconds=111))
