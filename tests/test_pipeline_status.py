@@ -71,3 +71,14 @@ def test_to_dict_structure():
     assert d["warning"] == 1
     assert d["critical"] == 0
     assert len(d["metrics"]) == 2
+
+
+def test_evaluate_pipeline_with_no_metrics():
+    """An empty evaluation list should result in an OK overall status with zero counts."""
+    ps = evaluate_pipeline("empty-pipe", [])
+    assert ps.overall_status == MetricStatus.OK
+    assert len(ps.critical_metrics) == 0
+    assert len(ps.warning_metrics) == 0
+    d = ps.to_dict()
+    assert d["total"] == 0
+    assert d["ok"] == 0
